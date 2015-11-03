@@ -1,65 +1,77 @@
-// 基于FIS2
+// 忽略文件
+var ignoreFile = "node_modules/**|output/**|.git/**|/fis*.js|package.json|.svn/**|dist/**|release/**|local/**|.idea/**|map.json|**.md";
+fis.set('project.ignore', ignoreFile.split("|"));
 
-// 定义各项开发规范
-fis.config.set('roadmap.path', [
-    {
-        reg: '**.md',           // 所有md后缀的文件
-        release: false          // 不发布
-    }, {
-        reg: 'map.json',        // fis默认生成的资源表文件
-        release: false          // 不发布
-    }, {
-        reg: 'module/**.html',  // module目录下的html后缀文件
-        release: false          // 不发布（在js中inline使用）
-    }, {
-        reg: '**.html',         // 其他html后缀的文件
-        isPage: true,           // 添加 isPage:true 属性（打包插件中用到）
-        isMod: true,            // 添加 isMod:true 属性（后处理插件中到）
-        useCache: false         // 无缓存构建
-    }, {
-        reg: /^\/module\/([^\/]+)\/\1\.js$/,        // module目录下目录与文件同名的js文件
-        isMod: true,                                // 添加 isMod:true 属性（后处理插件中到）
-        id: '$1'                                    // 文件id为文件名（缩短id，方便编码）
-    }, {
-        reg: /^\/module\/(.*\/([^\/]+))\/\2\.js$/,  // 与上条规则相似，只是一条正则不方便实现
-        isMod: true,
-        id: '$1'
-    }, {
-        reg: /^\/module\/(.*\.(?:js|css))$/,        // module目录下的其他js、css文件
-        isMod: true,                                // 添加 isMod:true 属性（后处理插件中到）
-        id: '$1'                                    // 资源id是去掉module路径剩下的部分
-    }
-]);
+// js文件cmd分析
+fis.hook('commonjs');
+
+// 为所有文件添加同名依赖
+fis.match("**", {
+  useSameNameRequire : true
+});
+
+// 为html文件添加 isPage 标签
+fis.match("**.html", {
+  extras: {
+    isPage: true
+  },
+  isMod: true,
+  useCache: false
+});
+
+// 不编译 module 下html文件
+fis.match("module/**.html", {
+  extras: {
+    isPage: false
+  },
+  release : false
+});
+
+
+// module目录下的其他js、css文件
+fis.match(/^\/module\/(.*\.(?:js|css))$/, {
+  isMod: true,
+  id: '$1',
+  moduleId: '$1'
+});
+
+// module目录下目录与文件同名的js文件
+fis.match(/^\/module\/([^\/]+)\/\1\.js$/, {
+  isMod: true,
+  id: '$1',
+  moduleId: '$1'
+});
+
+// 与上条规则相似，只是一条正则不方便实现
+fis.match(/^\/module\/(.*\/([^\/]+))\/\2\.js$/, {
+  isMod: true,
+  id: '$1',
+  moduleId: '$1'
+});
+
 
 // 在travis-ci上构建时添加 /upup 路径作为前缀
 if (process.env.GH_PAGES_DEPLOY) {
-    fis.config.set('roadmap.domain', '/upup');
+  // 默认开发环境
+  fis.media('dev').match("**", {
+    domain : "/upup"
+  });
 }
 
-
-// 针对所有js文件，判断文件对象的isMod属性是否为true，
-// 如果为true，则包裹define，进行模块化封装
-fis.config.set('modules.postprocessor.js', function (content, file) {
-    if (file.isMod) {
-        // 只有文件isMod属性为true的js才会被包裹define
-        content = "define('" + file.getId() + "', " +
-            "function(require, exports, module){" +
-            content + "\n})";
-    }
-    return content;
-});
-
 // 配置简单打包插件，按页面合并资源
-fis.config.set('modules.postpackager', function (ret, conf, settings, opt) {
+fis.match('::packager', {
+  postpackager : function (ret, conf, settings, opt){
     // 遍历所有源码文件
     for (var path in ret.src) {
         var file = ret.src[path];
-        if (file.isPage) {
+        if (file.extras.isPage) {
             // 针对标记了isPage的文件进行资源合并处理
             pack(file, ret, opt);
         }
     }
+  }
 });
+
 
 
 // 合并多个资源
@@ -109,6 +121,7 @@ function pack(file, ret, opt) {
         file.requires.forEach(function (id) {
             var f = ret.ids[id];
             if (f) collect(f);
+            else console.error('[WARN] missing file', id);
         });
         // 资源收集
         if (file.isJsLike) {

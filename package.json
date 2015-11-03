@@ -1,0 +1,18 @@
+{
+  "name": "upup",
+  "version": "1.0.0",
+  "description": "举牌小人（fis3）",
+  "author": {
+    "name": "maxming",
+    "email": "maxming2333@gmail.com"
+  },
+  "main": "src/fis-conf.js",
+  "repository" : {
+    "type": "git",
+    "url": "https://github.com/maxming2333/upup.git"
+  },
+  "dependencies": {
+    "fis3": "~3.2.0",
+    "fis3-hook-commonjs" : "~0.1.2"
+  }
+}
